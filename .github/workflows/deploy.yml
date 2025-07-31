@@ -30,7 +30,10 @@ jobs:
           mkdir -p build
           pip install -r requirements.txt -t build/
           cp lambda_function.py build/
-          cd build && zip -r ../../${{ matrix.lambda.name }}.zip . && cd ../..
+          ZIP_NAME=$(basename "${{ matrix.lambda.name }}").zip
+          cd build
+          zip -r ../../$ZIP_NAME .
+          cd ../..
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
