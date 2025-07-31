@@ -1,4 +1,4 @@
-name: Deploy All Lambda Functions
+name: Deploy Multiple Lambdas
 
 on:
   push:
@@ -12,9 +12,8 @@ jobs:
     strategy:
       matrix:
         lambda:
-          - name: O2K/test
+          - name: test
             function: test
-
 
     steps:
       - name: Checkout Code
@@ -31,7 +30,7 @@ jobs:
           mkdir -p build
           pip install -r requirements.txt -t build/
           cp lambda_function.py build/
-          cd build && zip -r ../../function.zip . && cd ../..
+          cd build && zip -r ../../${{ matrix.lambda.name }}.zip . && cd ../..
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -44,4 +43,4 @@ jobs:
         run: |
           aws lambda update-function-code \
             --function-name ${{ matrix.lambda.function }} \
-            --zip-file fileb://function.zip
+            --zip-file fileb://${{ matrix.lambda.name }}.zip
