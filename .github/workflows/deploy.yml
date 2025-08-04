@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  AWS_REGION: us-east-2
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -14,9 +17,11 @@ jobs:
         lambda:
           - name: lambdas/test
             function: test
+            layer: test-deps-layer
 
           - name: lambdas/collect_current_contract_data
             function: collect_current_contract_data
+            layer: collect-contracts-layer
 
     steps:
       - name: Checkout Code
@@ -27,26 +32,68 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies and Package Lambda
+      - name: Build Layer
+        working-directory: ${{ matrix.lambda.name }}
         run: |
-          cd ${{ matrix.lambda.name }}
-          mkdir -p build
-          pip install -r requirements.txt -t build/
-          cp lambda_function.py build/
-          ZIP_NAME=$(basename "${{ matrix.lambda.name }}").zip
-          cd build
-          zip -r ../../$ZIP_NAME .
-          cd ../..
+          mkdir -p python
+          pip install -r requirements.txt -t python/
+          zip -r ../../${{ matrix.lambda.layer }}.zip python/
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Publish Lambda Layer
+        id: publish_layer
+        run: |
+          LAYER_VERSION=$(aws lambda publish-layer-version \
+            --layer-name "${{ matrix.lambda.layer }}" \
+            --zip-file fileb://${{ matrix.lambda.layer }}.zip \
+            --compatible-runtimes python3.10 \
+            --region $AWS_REGION \
+            --query 'LayerVersionArn' \
+            --output text)
+          echo "layer_arn=$LAYER_VERSION" >> $GITHUB_OUTPUT
 
-      - name: Deploy to AWS Lambda
+      - name: Package Lambda Function
+        working-directory: ${{ matrix.lambda.name }}
+        run: |
+          zip -r ../../${{ matrix.lambda.function }}.zip lambda_function.py
+
+      - name: Deploy Lambda Code
         run: |
           aws lambda update-function-code \
             --function-name ${{ matrix.lambda.function }} \
-            --zip-file fileb://${{ matrix.lambda.name }}.zip
+            --zip-file fileb://${{ matrix.lambda.function }}.zip \
+            --region $AWS_REGION
+
+      - name: Attach Layer to Lambda
+        run: |
+          aws lambda update-function-configuration \
+            --function-name ${{ matrix.lambda.function }} \
+            --layers ${{ steps.publish_layer.outputs.layer_arn }} \
+            --region $AWS_REGION
+
+
+
+
+
+      # - name: Install Dependencies and Package Lambda
+      #   run: |
+      #     cd ${{ matrix.lambda.name }}
+      #     mkdir -p build
+      #     pip install -r requirements.txt -t build/
+      #     cp lambda_function.py build/
+      #     ZIP_NAME=$(basename "${{ matrix.lambda.name }}").zip
+      #     cd build
+      #     zip -r ../../$ZIP_NAME .
+      #     cd ../..
+
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
+
+      # - name: Deploy to AWS Lambda
+      #   run: |
+      #     aws lambda update-function-code \
+      #       --function-name ${{ matrix.lambda.function }} \
+      #       --zip-file fileb://${{ matrix.lambda.name }}.zip
