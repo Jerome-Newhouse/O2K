@@ -16,6 +16,8 @@ jobs:
           #   function: test
           - name: lambdas/collect_current_contract_data
             function: collect_current_contract_data
+          - name: lambdas/collect_historical_contract_data
+            function: collect_historical_contract_data
 
     env:
       AWS_REGION: us-east-2
