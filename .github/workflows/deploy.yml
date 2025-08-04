@@ -5,9 +5,6 @@ on:
     branches:
       - main
 
-env:
-  AWS_REGION: us-east-2
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -17,11 +14,11 @@ jobs:
         lambda:
           - name: lambdas/test
             function: test
-            layer: test-deps-layer
-
           - name: lambdas/collect_current_contract_data
             function: collect_current_contract_data
-            layer: collect-contracts-layer
+
+    env:
+      AWS_REGION: us-east-2
 
     steps:
       - name: Checkout Code
@@ -32,29 +29,39 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Build Layer
-        working-directory: ${{ matrix.lambda.name }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies and build Lambda Layer
+        id: build_layer
         run: |
-          mkdir -p python
-          pip install -r requirements.txt -t python/
-          zip -r ../../${{ matrix.lambda.layer }}.zip python/
+          mkdir -p ${{ matrix.lambda.name }}/python
+          pip install -r ${{ matrix.lambda.name }}/requirements.txt -t ${{ matrix.lambda.name }}/python/
+          cd ${{ matrix.lambda.name }}
+          zip -r ../${{ matrix.lambda.function }}_layer.zip python/
+        shell: bash
 
       - name: Publish Lambda Layer
         id: publish_layer
         run: |
-          LAYER_VERSION=$(aws lambda publish-layer-version \
-            --layer-name "${{ matrix.lambda.layer }}" \
-            --zip-file fileb://${{ matrix.lambda.layer }}.zip \
+          LAYER_ARN=$(aws lambda publish-layer-version \
+            --layer-name ${{ matrix.lambda.function }}-layer \
+            --zip-file fileb://${{ matrix.lambda.function }}_layer.zip \
             --compatible-runtimes python3.10 \
             --region $AWS_REGION \
             --query 'LayerVersionArn' \
             --output text)
-          echo "layer_arn=$LAYER_VERSION" >> $GITHUB_OUTPUT
+          echo "LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
 
       - name: Package Lambda Function
-        working-directory: ${{ matrix.lambda.name }}
         run: |
-          zip -r ../../${{ matrix.lambda.function }}.zip lambda_function.py
+          cd ${{ matrix.lambda.name }}
+          zip ../../${{ matrix.lambda.function }}.zip lambda_function.py
+        shell: bash
 
       - name: Deploy Lambda Code
         run: |
@@ -63,11 +70,11 @@ jobs:
             --zip-file fileb://${{ matrix.lambda.function }}.zip \
             --region $AWS_REGION
 
-      - name: Attach Layer to Lambda
+      - name: Attach Lambda Layer
         run: |
           aws lambda update-function-configuration \
             --function-name ${{ matrix.lambda.function }} \
-            --layers ${{ steps.publish_layer.outputs.layer_arn }} \
+            --layers ${{ env.LAYER_ARN }} \
             --region $AWS_REGION
 
 
