@@ -44,7 +44,7 @@ def save_to_s3(data, bucket_name, prefix):
     try:
             
         s3 = boto3.client("s3", region_name="us-east-2")
-        path = f"{prefix}{datetime.now().strftime('%Y-%m-%d')}.json"
+        path = f"{prefix}current_contracts.json"
         json_data = json.dumps(data)
         s3.put_object(Bucket=bucket_name, Key=path, Body=json_data, ContentType='application/json')
         return {
