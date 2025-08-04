@@ -42,7 +42,7 @@ jobs:
           mkdir -p ${{ matrix.lambda.name }}/python
           pip install -r ${{ matrix.lambda.name }}/requirements.txt -t ${{ matrix.lambda.name }}/python/
           cd ${{ matrix.lambda.name }}
-          zip -r ../${{ matrix.lambda.function }}_layer.zip python/
+          zip -r ../../${{ matrix.lambda.function }}_layer.zip python/
         shell: bash
 
       - name: Publish Lambda Layer
