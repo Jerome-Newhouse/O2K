@@ -15,6 +15,9 @@ jobs:
           - name: lambdas/test
             function: test
 
+          - name: lambdas/collect_current_contract_data
+            function: collect_current_contract_data
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
