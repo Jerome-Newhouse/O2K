@@ -25,14 +25,21 @@ def get_secrets():
                         secrets[name] = response["SecretBinary"]  # base64 encoded
                 except Exception as e:
                     logging.error(f"Could not retrieve secret {name}: {e}")
+                    return {
+                        "statusCode": 404,
+                        "message": "Could not retrieve secret",
+                        "body": f"Could not retrieve secret {name}: {e}"
+                    }
         return {
             "statusCode": 200,
+            "message": "Secrets retrieved successfully",
             "secrets": secrets
         }
     except Exception as e:
         logging.error(f"Could not retrieve secrets: {e}")
         return {
             "statusCode": 404,
+            "message": "Could not retrieve secrets",
             "body": f"Could not retrieve secrets: {e}"
         }
         
@@ -43,12 +50,14 @@ def get_historical_contract_data(secrets):
         response = requests.get(url)
         return {
             "statusCode": 200,
+            "message": "Historical contract data retrieved successfully",
             "body": response.json()
         }
     except Exception as e:
         logging.error(f"Could not get historical contract data: {e}")
         return {
             "statusCode": 404,
+            "message": "Could not get historical contract data",
             "body": f"Could not get historical contract data: {e}"
         }
         
@@ -60,12 +69,14 @@ def save_to_s3(data, bucket_name, prefix):
         s3.put_object(Bucket=bucket_name, Key=path, Body=json_data, ContentType='application/json')
         return {
             "statusCode": 200,
+            "message": "Historical contract data saved to S3",
             "body": f"Saved to S3: {path}"
         }
     except Exception as e:
         logging.error(f"Could not save to S3: {e}")
         return {
             "statusCode": 404,
+            "message": "Could not save to S3",
             "body": f"Could not save to S3: {e}"
         }
         
@@ -73,11 +84,35 @@ def save_to_s3(data, bucket_name, prefix):
         
 def lambda_handler(event, context):
     secrets = get_secrets()
-    print(secrets)
-    historical_contract_data = get_historical_contract_data(secrets['secrets'])
-    print(historical_contract_data)
-    response = save_to_s3(historical_contract_data['body'], event['bucket_name'], event['prefix'])
-    print(response)
+    if secrets['statusCode'] == 200:
+        historical_contract_data = get_historical_contract_data(secrets['secrets'])
+        if historical_contract_data['statusCode'] == 200:
+            response = save_to_s3(historical_contract_data['body'], event['bucket_name'], event['prefix'])
+            if response['statusCode'] == 200:
+                return {
+                    "statusCode": 200,
+                    "message": "Historical contract data saved to S3",
+                    "body": "Historical contract data saved to S3"
+                }
+            else:
+                return {
+                    "statusCode": 404,
+                    "message": "Could not save historical contract data to S3",
+                    "body": "Could not save historical contract data to S3"
+                }
+        else:
+            return {
+                "statusCode": 404,
+                "message": "Could not get historical contract data",
+                "body": "Could not get historical contract data"
+            }
+    else:
+        return {
+            "statusCode": 404,
+            "message": "Could not get secrets",
+            "body": "Could not get secrets"
+        }   
+    
     
     
 event = {

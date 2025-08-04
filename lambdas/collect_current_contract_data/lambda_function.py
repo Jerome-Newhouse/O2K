@@ -22,14 +22,21 @@ def get_secrets():
                         secrets[name] = response["SecretBinary"]  # base64 encoded
                 except Exception as e:
                     logging.error(f"Could not retrieve secret {name}: {e}")
+                    return {
+                        "statusCode": 404,
+                        "message": "Could not retrieve secret",
+                        "body": f"Could not retrieve secret {name}: {e}"
+                    }
         return {
             "statusCode": 200,
+            "message": "Secrets retrieved successfully",
             "secrets": secrets
         }
     except Exception as e:
         logging.error(f"Could not retrieve secrets: {e}")
         return {
             "statusCode": 404,
+            "message": "Could not retrieve secrets",
             "body": f"Could not retrieve secrets: {e}"
         }
     
@@ -42,12 +49,14 @@ def save_to_s3(data, bucket_name, prefix):
         s3.put_object(Bucket=bucket_name, Key=path, Body=json_data, ContentType='application/json')
         return {
             "statusCode": 200,
+            "message": "Saved to S3",
             "body": f"Saved to S3: {path}"
         }
     except Exception as e:
         logging.error(f"Could not save to S3: {e}")
         return {
             "statusCode": 404,
+            "message": "Could not save to S3",
             "body": f"Could not save to S3: {e}"
         }
 
@@ -63,12 +72,14 @@ def get_contract_data(secret):
         response = requests.get(url)
         return {
             "statusCode": 200,
+            "message": "Contract data retrieved successfully",
             "body": response.json()
         }
     except Exception as e:
         logging.error(f"Could not get contract data: {e}")
         return {
             "statusCode": 404,
+            "message": "Could not get contract data",
             "body": f"Could not get contract data: {e}"
         }
     
@@ -86,21 +97,25 @@ def lambda_handler(event, context):
                 if response['statusCode'] == 200:
                     return {
                         "statusCode": 200,
+                        "message": "Contract data saved to S3",
                         "body": "Contract data saved to S3"
                     }
                 else:
                     return {
                         "statusCode": 404,
+                        "message": "Could not save contract data to S3",
                         "body": "Could not save contract data to S3"
                     }
             else:
                 return {
                     "statusCode": 404,
+                    "message": "Could not get contract data",
                     "body": "Could not get contract data"
                 }
         else:
             return {
                 "statusCode": 404,
+                "message": "Could not get secrets",
                 "body": "Could not get secrets"
             }
             
@@ -109,6 +124,7 @@ def lambda_handler(event, context):
         logging.error(f"Could not get contract data: {e}")
         return {
             "statusCode": 404,
+            "message": "Could not get contract data",
             "body": f"Could not get contract data: {e}"
         }
 
