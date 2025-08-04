@@ -70,6 +70,20 @@ jobs:
             --zip-file fileb://${{ matrix.lambda.function }}.zip \
             --region $AWS_REGION
 
+      - name: Wait for Lambda to be ready
+        run: |
+          for i in {1..10}; do
+            status=$(aws lambda get-function-configuration --function-name ${{ matrix.lambda.function }} --query 'LastUpdateStatus' --output text)
+            if [ "$status" == "Successful" ]; then
+              echo "Lambda is ready"
+              exit 0
+            fi
+            echo "Waiting for Lambda update to complete. Status: $status"
+            sleep 5
+          done
+          echo "Timeout waiting for Lambda update to complete"
+          exit 1
+
       - name: Attach Lambda Layer
         run: |
           aws lambda update-function-configuration \
