@@ -12,8 +12,8 @@ jobs:
     strategy:
       matrix:
         lambda:
-          - name: lambdas/test
-            function: test
+          # - name: lambdas/test
+          #   function: test
           - name: lambdas/collect_current_contract_data
             function: collect_current_contract_data
 
