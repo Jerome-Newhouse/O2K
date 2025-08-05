@@ -4,6 +4,8 @@ import requests
 from datetime import datetime
 import time
 import logging
+import pandas as pd
+from io import StringIO
 
 
 
@@ -64,9 +66,11 @@ def get_historical_contract_data(secrets):
 def save_to_s3(data, bucket_name, prefix):
     try:
         s3 = boto3.client("s3", region_name="us-east-2")
-        path = f"{prefix}historical_contracts.json"
-        json_data = json.dumps(data)
-        s3.put_object(Bucket=bucket_name, Key=path, Body=json_data, ContentType='application/json')
+        path = f"{prefix}historical_contracts.csv"
+        csv_buffer = StringIO()
+        data.to_csv(csv_buffer, index=False)  
+        s3.put_object(Bucket=bucket_name, Key=path, Body=csv_buffer.getvalue(), ContentType='text/csv')
+
         return {
             "statusCode": 200,
             "message": "Historical contract data saved to S3",
@@ -80,14 +84,61 @@ def save_to_s3(data, bucket_name, prefix):
             "body": f"Could not save to S3: {e}"
         }
         
+        
+        
+def process_historical_contract_data(data):
+    try:
+        rows = []
+        for player in data:
+            player_info = {k: v for k, v in player.items() if k != 'history'}
+            for contract in player.get('history', []):
+                contract_info = {k: v for k, v in contract.items() if k != 'years'}
+                
+                for year in contract.get('years', []):
+                    # Merge player info + contract info + year
+                    row = {**player_info, **contract_info, **year}
+                    rows.append(row)
 
+        # Create DataFrame
+        df = pd.DataFrame(rows)
+        return {
+            "statusCode": 200,
+            "message": "Historical contract data processed successfully",
+            "body": df
+        }
+       
+            
+    except Exception as e:
+        logging.error(f"Could not process historical contract data: {e}")
+        return {
+            "statusCode": 404,
+            "message": "Could not process historical contract data",
+            "body": f"Could not process historical contract data: {e}"
+        }
+
+# def save_to_temp_csv(df):
+#     try:
+#         df.to_csv('temp.csv', index=False)
+#         return {
+#             "statusCode": 200,
+#             "message": "Historical contract data saved to temp.csv",
+#             "body": "Historical contract data saved to temp.csv"
+#         }
+#     except Exception as e:
+#         logging.error(f"Could not save to temp.csv: {e}")
+#         return {
+#             "statusCode": 404,
+#             "message": "Could not save to temp.csv",
+#             "body": f"Could not save to temp.csv: {e}"
+#         }
         
 def lambda_handler(event, context):
     secrets = get_secrets()
     if secrets['statusCode'] == 200:
         historical_contract_data = get_historical_contract_data(secrets['secrets'])
-        if historical_contract_data['statusCode'] == 200:
-            response = save_to_s3(historical_contract_data['body'], event['bucket_name'], event['prefix'])
+        processed_data = process_historical_contract_data(historical_contract_data['body'])
+        if processed_data['statusCode'] == 200:
+            response = save_to_s3(processed_data['body'], event['bucket_name'], event['prefix'])
             if response['statusCode'] == 200:
                 return {
                     "statusCode": 200,
