@@ -96,6 +96,7 @@ jobs:
         run: |
           aws lambda update-function-configuration \
             --function-name ${{ matrix.lambda.function }} \
-            --layers ${{ env.LAYER_ARN }},arn:aws:lambda:us-east-2:336392948345:layer:AWSSDKPandas-Python311:17 \
+            --layers ${{ env.LAYER_ARN }} \
+            --layers arn:aws:lambda:us-east-2:336392948345:layer:AWSSDKPandas-Python311:17 \
             --region $AWS_REGION
 
