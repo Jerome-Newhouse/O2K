@@ -14,9 +14,9 @@ jobs:
         lambda:
           # - name: lambdas/test
           #   function: test
-          - name: lambdas/Puckpedia/collect_current_contract_data
+          - name: lambdas/PuckPedia/collect_current_contract_data
             function: collect_current_contract_data
-          - name: lambdas/Puckpedia/collect_historical_contract_data
+          - name: lambdas/PuckPedia/collect_historical_contract_data
             function: collect_historical_contract_data
           - name: lambdas/NHLAPI/collect_player_information
             function: collect_player_information
