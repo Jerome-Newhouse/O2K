@@ -4,9 +4,12 @@ import requests
 from datetime import datetime
 import time
 import logging
+from io import StringIO
+import pandas as pd
 
 def get_secrets():
     try:
+        logging.info(f"Retrieving secrets")
         client = boto3.client("secretsmanager", region_name="us-east-2")
         secrets = {}
 
@@ -27,6 +30,7 @@ def get_secrets():
                         "message": "Could not retrieve secret",
                         "body": f"Could not retrieve secret {name}: {e}"
                     }
+        logging.info(f"Secrets retrieved successfully")
         return {
             "statusCode": 200,
             "message": "Secrets retrieved successfully",
@@ -42,11 +46,15 @@ def get_secrets():
     
 def save_to_s3(data, bucket_name, prefix):
     try:
-            
+        logging.info(f"Saving to S3 for bucket {bucket_name} and prefix {prefix}")
         s3 = boto3.client("s3", region_name="us-east-2")
-        path = f"{prefix}current_contracts.json"
-        json_data = json.dumps(data)
-        s3.put_object(Bucket=bucket_name, Key=path, Body=json_data, ContentType='application/json')
+        path = f"{prefix}current_contracts.csv"
+        csv_buffer = StringIO()
+        data.to_csv(csv_buffer, index=False)  
+        s3.put_object(Bucket=bucket_name, Key=path, Body=csv_buffer.getvalue(), ContentType='text/csv')
+        logging.info(f"Saved to S3 for bucket {bucket_name} and prefix {prefix}")
+            
+        
         return {
             "statusCode": 200,
             "message": "Saved to S3",
@@ -67,9 +75,11 @@ def save_to_s3(data, bucket_name, prefix):
     
 def get_contract_data(secret):
     try:
+        logging.info(f"Getting contract data")
         url = f"https://puckpedia.com/api/v2/players?api_key={secret}" 
-
         response = requests.get(url)
+        logging.info(f"Contract data retrieved successfully")
+        
         return {
             "statusCode": 200,
             "message": "Contract data retrieved successfully",
@@ -82,29 +92,70 @@ def get_contract_data(secret):
             "message": "Could not get contract data",
             "body": f"Could not get contract data: {e}"
         }
-    
+
+
+def process_current_contract_data(data):
+    try:
+        logging.info(f"Processing current contract data")
+        rows = []
+        for player in data:
+            player_info = {k: v for k, v in player.items() if k != 'current'}
+            for contract in player.get('current', []):
+                contract_info = {k: v for k, v in contract.items() if k != 'years'}
+                
+                for year in contract.get('years', []):
+                    # Merge player info + contract info + year
+                    row = {**player_info, **contract_info, **year}
+                    rows.append(row)
+
+        
+        df = pd.DataFrame(rows)
+        logging.info(f"Current contract data processed successfully")
+        return {
+            "statusCode": 200,
+            "message": "Historical contract data processed successfully",
+            "body": df
+        }
+       
+            
+    except Exception as e:
+        logging.error(f"Could not process historical contract data: {e}")
+        return {
+            "statusCode": 404,
+            "message": "Could not process historical contract data",
+            "body": f"Could not process historical contract data: {e}"
+        }
 
     
 def lambda_handler(event, context):
     try:
         secrets = get_secrets()
-        if secrets['statusCode'] == 200:
+        if secrets['statusCode'] == 200:   
             contract_data = get_contract_data(secrets['secrets']['PuckPedia']['PuckPedia'])
-            
+
             if contract_data['statusCode'] == 200:
-                response = save_to_s3(contract_data['body'], event['bucket_name'], event['prefix'])
+                processed_contract_data = process_current_contract_data(contract_data['body'])
                 
-                if response['statusCode'] == 200:
-                    return {
-                        "statusCode": 200,
-                        "message": "Contract data saved to S3",
-                        "body": "Contract data saved to S3"
-                    }
+                if processed_contract_data['statusCode'] == 200:
+                    response = save_to_s3(processed_contract_data['body'], event['bucket_name'], event['prefix'])
+                    
+                    if response['statusCode'] == 200:
+                        return {
+                            "statusCode": 200,
+                            "message": "Contract data saved to S3",
+                            "body": "Contract data saved to S3"
+                        }
+                    else:
+                        return {
+                            "statusCode": 404,
+                            "message": "Could not save contract data to S3",
+                            "body": "Could not save contract data to S3"
+                        }
                 else:
                     return {
                         "statusCode": 404,
-                        "message": "Could not save contract data to S3",
-                        "body": "Could not save contract data to S3"
+                        "message": "Could not process contract data",
+                        "body": "Could not process contract data"
                     }
             else:
                 return {
