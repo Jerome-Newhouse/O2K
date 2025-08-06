@@ -116,21 +116,7 @@ def process_historical_contract_data(data):
             "body": f"Could not process historical contract data: {e}"
         }
 
-# def save_to_temp_csv(df):
-#     try:
-#         df.to_csv('temp.csv', index=False)
-#         return {
-#             "statusCode": 200,
-#             "message": "Historical contract data saved to temp.csv",
-#             "body": "Historical contract data saved to temp.csv"
-#         }
-#     except Exception as e:
-#         logging.error(f"Could not save to temp.csv: {e}")
-#         return {
-#             "statusCode": 404,
-#             "message": "Could not save to temp.csv",
-#             "body": f"Could not save to temp.csv: {e}"
-#         }
+
         
 def lambda_handler(event, context):
     secrets = get_secrets()

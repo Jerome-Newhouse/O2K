@@ -1,8 +1,6 @@
 import boto3
 import json
 import requests
-from datetime import datetime
-import time
 import logging
 from io import StringIO
 import pandas as pd
