@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 from io import StringIO
 
+
 def get_historical_contracts_csv_from_s3(bucket_name, prefix):
     try:
         logging.info(f"Retrieving CSV from S3 for bucket {bucket_name} and prefix {prefix}")
