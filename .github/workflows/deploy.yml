@@ -64,7 +64,7 @@ jobs:
       - name: Package Lambda Function
         run: |
           cd ${{ matrix.lambda.name }}
-          zip ../../${{ matrix.lambda.function }}.zip lambda_function.py
+          zip ../../../${{ matrix.lambda.function }}.zip lambda_function.py
         shell: bash
 
       - name: Deploy Lambda Code
