@@ -14,10 +14,12 @@ jobs:
         lambda:
           # - name: lambdas/test
           #   function: test
-          - name: lambdas/collect_current_contract_data
+          - name: lambdas/Puckpedia/collect_current_contract_data
             function: collect_current_contract_data
-          - name: lambdas/collect_historical_contract_data
+          - name: lambdas/Puckpedia/collect_historical_contract_data
             function: collect_historical_contract_data
+          - name: lambdas/NHLAPI/collect_player_information
+            function: collect_player_information
 
     env:
       AWS_REGION: us-east-2
