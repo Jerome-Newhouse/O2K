@@ -2,6 +2,7 @@ import boto3
 import logging
 import pandas as pd
 from io import StringIO
+import json
 
 
 def get_historical_contracts_csv_from_s3(bucket_name, prefix):
@@ -48,25 +49,48 @@ def get_current_contracts_csv_from_s3(bucket_name, prefix):
         }
         
         
-def get_player_ids(csv_data):
+def get_nhl_ids(csv_data):
     try:
-        logging.info(f"Retrieving player IDs from CSV")
-        player_ids = csv_data['player_id'].unique().tolist()
-        logging.info(f"Player IDs retrieved successfully")
+        logging.info(f"Retrieving NHL IDs from CSV")
+        nhl_ids = csv_data['nhl_id'].unique().tolist()
+        logging.info(f"NHL IDs retrieved successfully")
         return {
             "statusCode": 200,
-            "message": "Player IDs retrieved successfully",
-            "body": player_ids
+            "message": "NHL IDs retrieved successfully",
+            "body": nhl_ids
         }   
     except Exception as e:
-        logging.error(f"Could not retrieve player IDs from CSV: {e}")
+        logging.error(f"Could not retrieve NHL IDs from CSV: {e}")   
         return {
             "statusCode": 404,
-            "message": "Could not retrieve player IDs",
+            "message": "Could not retrieve NHL IDs",
             "body": f"Could not retrieve player IDs: {e}"
         }
     
 
+def save_to_s3(data, bucket_name, prefix):
+    try:
+        logging.info(f"Saving to S3 for bucket {bucket_name} and prefix {prefix}")
+        s3 = boto3.client("s3", region_name="us-east-2")
+        path = f"{prefix}nhl_ids.json"
+        data = {
+            "nhl_ids": data
+        }
+        json_data = json.dumps(data)
+        s3.put_object(Bucket=bucket_name, Key=path, Body=json_data, ContentType='application/json')
+        logging.info(f"Saved to S3 for bucket {bucket_name} and prefix {prefix}")
+        return {
+            "statusCode": 200,
+            "message": "Saved to S3",
+            "body": "Saved to S3"
+        }
+    except Exception as e:      
+        logging.error(f"Could not save to S3 for bucket {bucket_name} and prefix {prefix}: {e}")
+        return {
+            "statusCode": 404,
+            "message": "Could not save to S3",
+            "body": f"Could not save to S3: {e}"
+        }
 
 def lambda_handler(event, context):
     try:
@@ -77,18 +101,19 @@ def lambda_handler(event, context):
             
             if current_contracts_csv_data['statusCode'] == 200:
                 historical_contracts_csv_data['body'] = pd.concat([historical_contracts_csv_data['body'], current_contracts_csv_data['body']])
-                player_ids = get_player_ids(historical_contracts_csv_data['body'])
+                nhl_ids = get_nhl_ids(historical_contracts_csv_data['body'])
                 
-                if player_ids['statusCode'] == 200:
+                if nhl_ids['statusCode'] == 200:
+                    save_to_s3(nhl_ids['body'], event['bucket_name'], event['nhl_ids_prefix'])
                     return {
                         "statusCode": 200,
                         "message": "Player IDs retrieved successfully",
-                        "body": player_ids['body']
+                        "body": nhl_ids['body']
                     }
                 else:
                     return {
                         "statusCode": 404,
-                        "message": "Could not retrieve player IDs",
+                        "message": "Could not retrieve NHL IDs",
                         
                     }
             else:           
@@ -108,8 +133,8 @@ def lambda_handler(event, context):
     except Exception as e:
         return {
             "statusCode": 404,
-            "message": "Could not retrieve player IDs",
-            "body": f"Could not retrieve player IDs: {e}"
+            "message": "Could not retrieve NHL IDs",
+            "body": f"Could not retrieve NHL IDs: {e}"
         }
         
         
@@ -118,7 +143,8 @@ def lambda_handler(event, context):
 event = {
     "bucket_name": "puckpedia",
     "historical_contracts_prefix": "players/historical_contracts/historical_contracts.csv",
-    "current_contracts_prefix": "players/current_contracts/current_contracts.csv"
+    "current_contracts_prefix": "players/current_contracts/current_contracts.csv",
+    "nhl_ids_prefix": "players/nhl_ids/"
 }
 
 response = lambda_handler(event, None)
