@@ -68,24 +68,61 @@ def calculate_advanced_stats(merged_stats):
             "body": f"Could not calculate advanced stats: {e}"
         }
 
+def save_to_s3(data, bucket_name, prefix):
+
+    try:
+        data = data.to_csv(index=False)
+        s3 = boto3.client("s3", region_name="us-east-2")
+        s3.put_object(Bucket=bucket_name, Key=prefix, Body=data)
+        return {
+            "statusCode": 200,
+            "message": "Data saved successfully",
+            "body": "Data saved successfully"
+        }
+    except Exception as e:
+        return {
+            "statusCode": 404,
+            "message": "Data not saved",
+            "body": f"Data not saved: {e}"
+        }
+
 def lambda_handler(event, context):
     try:
         merged_stats = get_merged_stats(event['bucket_name'], event['merged_stats_prefix'])
-        print(merged_stats)
-        advanced_stats = calculate_advanced_stats(merged_stats['body'])
-        print(advanced_stats)
-        # if merged_stats['statusCode'] == 200:
-        #     advanced_stats = calculate_advanced_stats(merged_stats['body'])
-        #     if advanced_stats['statusCode'] == 200:
-        #         merged_stats = merged_stats['body']
-        #         advanced_stats = advanced_stats['body']
-        #         merged_stats = pd.merge(merged_stats, advanced_stats, on='playerId', how='left')
-        #         save_to_s3(merged_stats, event['bucket_name'], event['merged_stats_prefix'])
-        return {
-            "statusCode": 200,
-            "message": "Add advanced stats",
-            "body": "Add advanced stats"
-        }
+        print(merged_stats['body'].columns)
+        if merged_stats['statusCode'] == 200:
+            advanced_stats = calculate_advanced_stats(merged_stats['body'])
+            if advanced_stats['statusCode'] == 200:
+                # merged_stats = merged_stats['body']
+                # print(merged_stats.columns)
+                # advanced_stats = advanced_stats['body']
+                # merged_stats = pd.merge(merged_stats, advanced_stats, on='playerId', how='left', suffixes=("", ""))
+                save_to_s3_response = save_to_s3(advanced_stats['body'], event['bucket_name'], event['advanced_stats_prefix'])
+                if save_to_s3_response['statusCode'] == 200:
+                    return {
+                        "statusCode": 200,
+                        "message": "Add advanced stats",
+                        "body": "Add advanced stats"
+                    }
+                else:
+                    return {
+                        "statusCode": 404,
+                        "message": "Data not saved",
+                        "body": f"Data not saved: {save_to_s3_response['body']}"
+                    }
+            else:
+                return {
+                    "statusCode": 404,
+                    "message": "Advanced stats not calculated",
+                    "body": f"Advanced stats not calculated: {advanced_stats['body']}"
+                }
+        else:
+            return {
+                "statusCode": 404,
+                "message": "Merged stats not found",
+                "body": f"Merged stats not found: {merged_stats['body']}"
+            }
+        
     except Exception as e:
         return {
             "statusCode": 500,
