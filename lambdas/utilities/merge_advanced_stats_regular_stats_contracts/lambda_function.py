@@ -72,7 +72,9 @@ def lambda_handler(event, context):
             advanced_stats = get_data(event['advanced_stats_bucket_name'], event['advanced_stats_prefix'])
             
             if advanced_stats['statusCode'] == 200:
-                merged_stats = pd.merge(contract_stats['body'], advanced_stats['body'], left_on=['playerId', 'seasonId'], right_on=['playerId', 'season'], how='inner')
+                contract_stats['body'].drop(columns=['position', 'season'], inplace=True)
+                merged_stats = pd.merge(contract_stats['body'], advanced_stats['body'], left_on=['playerId', 'seasonId'], right_on=['playerId', 'season'], how='inner', suffixes=("", ""))
+                
                 save_to_s3_response = save_to_s3(merged_stats, event['save_to_s3_bucket_name'], event['save_to_s3_prefix'])
                 if save_to_s3_response['statusCode'] == 200:
                     return {
@@ -112,7 +114,7 @@ def lambda_handler(event, context):
         
 event = {
     "bucket_name": "puckpedia",
-    "contract_stats_prefix": "players/merged_data/merged_data.csv",
+    "contract_stats_prefix": "players/advanced_stats/advanced_stats.csv",
     "advanced_stats_prefix": "merged_data/skaters/merged_data.csv",
     "advanced_stats_bucket_name": "money-puck-data",
     "save_to_s3_prefix": "players/merged_data/merged_data_advanced_contracts.csv",
