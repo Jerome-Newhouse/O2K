@@ -25,7 +25,7 @@ def get_data(bucket_name, prefix):
 
 def calculate_average_stats(data):
     try:
-        stats = ['goals', 'assists', 'plusMinus', 'points', 'pointsPerGame', 'timeOnIcePerGame', 'shotsBlockedByPlayer', 'onIce_corsiPercentage']
+        stats = ['goals_per_game', 'assists_per_game', 'points_per_game', 'even_strength_points_per_game', 'power_play_points_per_game', 'goals_per_60', 'assists_per_60', 'points_per_60', 'timeOnIcePerGame', 'shotsBlockedByPlayer', 'onIce_corsiPercentage', 'onIce_xGoalsPercentage' ]
         df_overall = data[data["situation"] == "all"].copy()
         df_overall = df_overall.sort_values(["contract_id", "seasonId"], ascending=[True, True])
         weighted_stats = []
