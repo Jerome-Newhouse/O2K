@@ -33,7 +33,7 @@ def get_data(bucket_name, prefix):
 
 def calculate_nearest_neighbors(data):
     try:
-        features = ['goals_y', 'assists_y', 'plusMinus_y', 'points_y', 'pointsPerGame_y', 'timeOnIcePerGame_y', 'shotsBlockedByPlayer_y', 'onIce_corsiPercentage_y']
+        features = ['goals_per_game_y', 'assists_per_game_y', 'points_per_game_y', 'even_strength_points_per_game_y', 'power_play_points_per_game_y', 'goals_per_60_y', 'assists_per_60_y', 'points_per_60_y', 'timeOnIcePerGame_y', 'shotsBlockedByPlayer_y', 'onIce_corsiPercentage_y', 'onIce_xGoalsPercentage_y']
         data = data[features].fillna(0)
         data_scaled = scaler.fit_transform(data)
         nbrs = NearestNeighbors(n_neighbors=10, algorithm='ball_tree').fit(data_scaled)
@@ -52,7 +52,8 @@ def calculate_nearest_neighbors(data):
         
 def find_similar_contracts(contract_id, data, nbrs):
     try:
-        features = ['goals_y', 'assists_y', 'plusMinus_y', 'points_y', 'pointsPerGame_y', 'timeOnIcePerGame_y', 'shotsBlockedByPlayer_y', 'onIce_corsiPercentage_y']
+        # features = ['goals_y', 'assists_y', 'plusMinus_y', 'points_y', 'pointsPerGame_y', 'timeOnIcePerGame_y', 'shotsBlockedByPlayer_y', 'onIce_corsiPercentage_y']
+        features = ['goals_per_game_y', 'assists_per_game_y', 'points_per_game_y', 'even_strength_points_per_game_y', 'power_play_points_per_game_y', 'goals_per_60_y', 'assists_per_60_y', 'points_per_60_y', 'timeOnIcePerGame_y', 'shotsBlockedByPlayer_y', 'onIce_corsiPercentage_y', 'onIce_xGoalsPercentage_y']
         contract_data = data[data['contract_id'] == contract_id][features].fillna(0)
         contract_data_scaled = scaler.transform(contract_data)
         distances, indices = nbrs.kneighbors(contract_data_scaled)
@@ -86,6 +87,8 @@ def get_next_contract_info(contract_id, player_id, data):
         next_contract_info = player_contracts[player_contracts['season'] == next_season]
         next_contract_id = next_contract_info['contract_id'].iloc[0]
         next_contract_info = player_contracts[player_contracts['contract_id'] == next_contract_id]
+        
+        
     
         if next_contract_info.empty:
             return {
@@ -121,9 +124,13 @@ def lambda_handler(event, context):
                     if all_contracts['statusCode'] == 200:
                         next_contracts = []
                         for index, row in similar_contracts['body'].iterrows():
-                            next_contract_info = get_next_contract_info(row['contract_id'], row['playerId'], all_contracts['body'])
-                            if next_contract_info['statusCode'] == 200:
-                                next_contracts.append(next_contract_info['body'])
+                            if row['contract_id'] != event['contract_id']:
+                                next_contract_info = get_next_contract_info(row['contract_id'], row['playerId'], all_contracts['body'])
+                                if next_contract_info['statusCode'] == 200:
+                                    next_contracts.append(next_contract_info['body'])
+                                else:
+                                    current_contract = all_contracts['body'][all_contracts['body']['contract_id'] == row['contract_id']]
+                                    next_contracts.append(current_contract)
                      
                         next_contracts = pd.concat(next_contracts)
                         return {
@@ -178,8 +185,19 @@ event = {
 }
 
 lambda_result = lambda_handler(event, {})
-print(lambda_result['body'][['contract_id', 'lastName', 'value', 'length', 'season', 'percentage_of_season_salary_cap']])
+# print(lambda_result)
+# print(lambda_result['body'][['contract_id', 'lastName', 'value', 'length', 'season', 'percentage_of_season_salary_cap', 'cap_hit', 'aav']])
 # print(lambda_handler(event, {}))
+
+player_contracts = lambda_result['body']
+player_contracts['average_percentage_of_season_salary_cap'] = player_contracts.groupby('contract_id')['percentage_of_season_salary_cap'].transform('mean')
+
+player_contracts['season_span'] = player_contracts.groupby('contract_id')['season'].transform(lambda x: f"{x.min()} - {x.max()}")
+
+first_entry_per_contract = player_contracts.groupby('contract_id').first()
+
+
+print(first_entry_per_contract[[ 'lastName', 'value', 'length', 'cap_hit', 'aav', 'average_percentage_of_season_salary_cap', 'season_span']])
 
 
 
